@@ -1,4 +1,4 @@
-Brewery (c) 2025 by FabianButHere
+Simple Cars (c) 2025 by FabianButHere
 
 This project and all related files are licensed under a
 Creative Commons Attribution-NonCommercial 3.0 Unported License.

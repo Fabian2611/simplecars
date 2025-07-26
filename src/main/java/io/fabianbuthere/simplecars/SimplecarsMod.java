@@ -1,6 +1,8 @@
-package io.fabianbuthere.brewery;
+package io.fabianbuthere.simplecars;
 
 import com.mojang.logging.LogUtils;
+import io.fabianbuthere.simplecars.block.ModBlocks;
+import io.fabianbuthere.simplecars.item.ModItems;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
@@ -14,21 +16,22 @@ import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
 // The value here should match an entry in the META-INF/mods.toml file
-@Mod(BreweryMod.MOD_ID)
-public class BreweryMod
+@Mod(SimplecarsMod.MOD_ID)
+public class SimplecarsMod
 {
     // Define mod id in a common place for everything to reference
-    public static final String MOD_ID = "brewery";
-    // Directly reference a slf4j logger
+    public static final String MOD_ID = "simplecars";
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public BreweryMod(FMLJavaModLoadingContext context)
+    public SimplecarsMod(FMLJavaModLoadingContext context)
     {
         IEventBus modEventBus = context.getModEventBus();
 
         // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
 
+        ModBlocks.register(modEventBus);
+        ModItems.register(modEventBus);
 
         MinecraftForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
