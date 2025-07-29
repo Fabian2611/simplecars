@@ -2,13 +2,18 @@ package io.fabianbuthere.simplecars;
 
 import com.mojang.logging.LogUtils;
 import io.fabianbuthere.simplecars.block.ModBlocks;
+import io.fabianbuthere.simplecars.entity.ModEntities;
+import io.fabianbuthere.simplecars.entity.client.BaseCarRenderer;
 import io.fabianbuthere.simplecars.item.ModItems;
+import net.minecraft.client.renderer.entity.EntityRenderers;
+import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -21,7 +26,7 @@ public class SimplecarsMod
 {
     // Define mod id in a common place for everything to reference
     public static final String MOD_ID = "simplecars";
-    private static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LogUtils.getLogger();
 
     public SimplecarsMod(FMLJavaModLoadingContext context)
     {
@@ -32,6 +37,8 @@ public class SimplecarsMod
 
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
+
+        ModEntities.register(modEventBus);
 
         MinecraftForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
@@ -62,7 +69,7 @@ public class SimplecarsMod
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event)
         {
-
+            EntityRenderers.register(ModEntities.BASE_CAR.get(), BaseCarRenderer::new);
         }
     }
 }
