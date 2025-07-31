@@ -54,6 +54,7 @@ public class BaseCarEntity extends Mob {
     private float carSteeringFactor = 8.0F;
     private double carMaximumUpwardDrive = 0.75;
     private float weight = 60.0F;
+    private String licensePlateText = "ABC-0123";
 
     private AbstractEngineItem engineItem;
     private AbstractFrameItem frameItem;
@@ -119,6 +120,7 @@ public class BaseCarEntity extends Mob {
     public double getCarBrakeStrength() { return carBrakeStrength; }
     public float getCarSteeringFactor() { return carSteeringFactor; }
     public double getCarMaximumUpwardDrive() { return carMaximumUpwardDrive; }
+    public String getLicensePlateText() { return licensePlateText; }
 
     public int getCapacity() {
         return capacity;
