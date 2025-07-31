@@ -577,7 +577,16 @@ public class BaseCarEntity extends Mob {
     }
 
     @Override
+    public boolean fireImmune() {
+        return true;
+    }
+
+    @Override
     protected @NotNull InteractionResult mobInteract(Player pPlayer, InteractionHand pHand) {
+        if (pHand == InteractionHand.OFF_HAND) {
+            return InteractionResult.PASS;
+        }
+
         double handItemFuelValue = getFuelUnitsPerMillibucketForItem(pPlayer.getItemInHand(pHand));
         Fluid fluid = FluidUtil.getFluidContained(pPlayer.getItemInHand(pHand)).map(FluidStack::getFluid).orElse(null);
 
@@ -585,7 +594,11 @@ public class BaseCarEntity extends Mob {
             return InteractionResult.PASS;
         }
         else if (handItemFuelValue > 0.0 && fluid != null) {
-            this.fluidTank.put(fluid.getFluidType().getDescriptionId(), this.fluidTank.getOrDefault(fluid.getFluidType().getDescriptionId(), 0.0) + handItemFuelValue * getItemFluidAmount(pPlayer.getItemInHand(pHand)));
+            double totalFuelAfterAddingHand = this.fluidTank.getOrDefault(fluid.getFluidType().getDescriptionId(), 0.0) + handItemFuelValue * getItemFluidAmount(pPlayer.getItemInHand(pHand));
+            if (this.fuelTankItem == null || totalFuelAfterAddingHand > this.fuelTankItem.getBaseFuelCapacity()) {
+                return InteractionResult.CONSUME;
+            }
+            this.fluidTank.put(fluid.getFluidType().getDescriptionId(), totalFuelAfterAddingHand);
             if (!pPlayer.isCreative()) {
                 pPlayer.getItemInHand(pHand).shrink(1);
             }
@@ -593,12 +606,11 @@ public class BaseCarEntity extends Mob {
         } else if (pPlayer.getItemInHand(pHand).getItem() instanceof AbstractCarPartItem carPartItem) {
             boolean changed = false;
             if (carPartItem.getPartType() == CarPartType.ENGINE) {
-                SimplecarsMod.LOGGER.info("BaseCarEntity received engine part: {}, while currently having: {}", carPartItem.getDescriptionId(), this.engineItem != null ? this.engineItem.getDescriptionId() : "null");
-                if (this.engineItem != null) return InteractionResult.FAIL;
+                if (this.engineItem != null) return InteractionResult.CONSUME;
                 this.engineItem = (AbstractEngineItem) carPartItem;
                 changed = true;
             } else if (carPartItem.getPartType() == CarPartType.FRAME) {
-                if (this.frameItem != null) return InteractionResult.FAIL;
+                if (this.frameItem != null) return InteractionResult.CONSUME;
                 this.frameItem = (AbstractFrameItem) carPartItem;
                 // Re-initialize wheels array to match required wheels for this frame
                 int reqWheels = this.frameItem.getRequiredWheels();
@@ -609,7 +621,7 @@ public class BaseCarEntity extends Mob {
                 }
                 changed = true;
             } else if (carPartItem.getPartType() == CarPartType.FUEL_TANK) {
-                if (this.fuelTankItem != null) return InteractionResult.FAIL;
+                if (this.fuelTankItem != null) return InteractionResult.CONSUME;
                 this.fuelTankItem = (AbstractFuelTankItem) carPartItem;
                 changed = true;
             } else if (carPartItem.getPartType() == CarPartType.WHEEL) {
@@ -626,7 +638,7 @@ public class BaseCarEntity extends Mob {
                     }
                 }
                 if (!hasSpace) {
-                    return InteractionResult.FAIL;
+                    return InteractionResult.CONSUME;
                 }
             }
             if (changed) {
@@ -636,18 +648,16 @@ public class BaseCarEntity extends Mob {
                 if (!pPlayer.isCreative()) {
                     pPlayer.getItemInHand(pHand).shrink(1);
                 }
-                return InteractionResult.CONSUME;
+                return InteractionResult.SUCCESS;
             }
             return InteractionResult.FAIL;
         } else if (!this.level().isClientSide && !(this.getPassengers().size() >= this.getCapacity())) {
-            // Prevent mounting if holding a car part, even if it can't be installed
             if (pPlayer.getItemInHand(pHand).getItem() instanceof AbstractCarPartItem) {
                 return InteractionResult.FAIL;
             }
-            SimplecarsMod.LOGGER.info("BaseCarEntity: Player {} tried to interact with car, but no valid part or fuel item found. Seating.", pPlayer.getName().getString());
-            return pPlayer.startRiding(this) ? InteractionResult.CONSUME : InteractionResult.PASS;
+            return pPlayer.startRiding(this) ? InteractionResult.SUCCESS : InteractionResult.PASS;
         } else {
-            return InteractionResult.SUCCESS;
+            return InteractionResult.PASS;
         }
     }
 
@@ -749,6 +759,7 @@ public class BaseCarEntity extends Mob {
             }
         }
         if (mostEfficientFuel != null) {
+            // The below line makes absolutely no sense but it feels good so I'm keeping it
             double fuelUnitsNeeded = Math.abs(velocity) * this.fuelConsumptionRate * 10; // Get average fuel units needed per tick
             double availableFuelInMillibuckets = this.fluidTank.getOrDefault(mostEfficientFuel, 0.0);
             double fuelUnitsPerMillibucket = FLUID_TO_FUEL_PER_MB.getOrDefault(mostEfficientFuel, 0.0);
@@ -787,7 +798,7 @@ public class BaseCarEntity extends Mob {
             boolean isNearlyStopped = Math.abs(velocity) < 0.01;
             if (isNearlyStopped) {
                 if (Math.abs(strafe) > 0.01) {
-                    // Only accumulate pre-steer when nearly stopped (smoother)
+                    // Only accumulate pre-steer when nearly stopped
                     pendingSteerInput += strafe * 0.09f;
                     pendingSteerInput = Math.max(-0.25f, Math.min(0.25f, pendingSteerInput));
                 } else {
@@ -868,7 +879,6 @@ public class BaseCarEntity extends Mob {
                         }
                     }
                     if (!canStep) {
-                        // Wall block detected, enable wall sliding
                         wallBlocked = true;
                     }
                 }
@@ -929,8 +939,6 @@ public class BaseCarEntity extends Mob {
             super.travel(travelVector);
         }
     }
-
-    // Implementation of useUpFuel not shown in provided code.
 
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {
