@@ -87,7 +87,7 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
         }
     }
 
-    public void renderLicensePlate(PoseStack poseStack, MultiBufferSource buffer, int packedLight, ResourceLocation plateTexture, float yaw, Vec3 offset) {
+    public void renderBackLicensePlate(PoseStack poseStack, MultiBufferSource buffer, int packedLight, ResourceLocation plateTexture, float yaw, Vec3 offset) {
         if (plateTexture == null) return;
 
         poseStack.pushPose();
@@ -104,11 +104,11 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
         int overlay = OverlayTexture.NO_OVERLAY;
         float nx = 0f, ny = 0f, nz = 1f;
 
-        // Reverse winding order and swap UVs for v
-        vc.vertex(matrix, minX, maxY, z).color(color).uv(u0, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
-        vc.vertex(matrix, maxX, maxY, z).color(color).uv(u1, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
-        vc.vertex(matrix, maxX, minY, z).color(color).uv(u1, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
-        vc.vertex(matrix, minX, minY, z).color(color).uv(u0, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        // Reverse winding order and flip horizontally by swapping u0 and u1
+        vc.vertex(matrix, minX, maxY, z).color(color).uv(u1, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        vc.vertex(matrix, maxX, maxY, z).color(color).uv(u0, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        vc.vertex(matrix, maxX, minY, z).color(color).uv(u0, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        vc.vertex(matrix, minX, minY, z).color(color).uv(u1, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
 
         poseStack.popPose();
     }
@@ -129,6 +129,6 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
             plateTexture = uploadPlateTexture(plateImage, "plate_" + pEntity.getUUID() + "_" + plateText.toLowerCase());
             plateTextureCache.put(plateText, plateTexture);
         }
-        renderLicensePlate(pPoseStack, pBuffer, pPackedLight, plateTexture, pEntityYaw, pEntity.getLicensePlateOffset());
+        renderBackLicensePlate(pPoseStack, pBuffer, pPackedLight, plateTexture, pEntityYaw, pEntity.getBackLicensePlateOffset());
     }
 }

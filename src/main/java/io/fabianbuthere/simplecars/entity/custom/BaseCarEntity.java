@@ -122,7 +122,7 @@ public class BaseCarEntity extends Mob {
     public float getCarSteeringFactor() { return carSteeringFactor; }
     public double getCarMaximumUpwardDrive() { return carMaximumUpwardDrive; }
     public String getLicensePlateText() { return licensePlateText; }
-    public Vec3 getLicensePlateOffset() { return licensePlateOffset; }
+    public Vec3 getBackLicensePlateOffset() { return licensePlateOffset; }
 
     public int getCapacity() {
         return capacity;
