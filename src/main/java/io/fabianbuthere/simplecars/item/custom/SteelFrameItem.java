@@ -4,6 +4,7 @@ import io.fabianbuthere.simplecars.SimplecarsMod;
 import io.fabianbuthere.simplecars.entity.client.ModModelLayers;
 import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 
 public class SteelFrameItem extends AbstractFrameItem {
     public SteelFrameItem(Properties pProperties) {
@@ -34,5 +35,10 @@ public class SteelFrameItem extends AbstractFrameItem {
     @SuppressWarnings("removal")
     public ResourceLocation getTextureLocation() {
         return new ResourceLocation(SimplecarsMod.MOD_ID, "textures/entity/empty.png");
+    }
+
+    @Override
+    public Vec3 getBackLicensePlateOffset() {
+        return new Vec3(0, 0.5, -2.1);
     }
 }

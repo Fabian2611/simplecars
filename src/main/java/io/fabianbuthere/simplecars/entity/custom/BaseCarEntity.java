@@ -55,7 +55,6 @@ public class BaseCarEntity extends Mob {
     private double carMaximumUpwardDrive = 0.75;
     private float weight = 60.0F;
     private String licensePlateText = "ABC-0123";
-    private Vec3 licensePlateOffset = new Vec3(0, 0.5, -2.1);
 
     private AbstractEngineItem engineItem;
     private AbstractFrameItem frameItem;
@@ -122,7 +121,7 @@ public class BaseCarEntity extends Mob {
     public float getCarSteeringFactor() { return carSteeringFactor; }
     public double getCarMaximumUpwardDrive() { return carMaximumUpwardDrive; }
     public String getLicensePlateText() { return licensePlateText; }
-    public Vec3 getBackLicensePlateOffset() { return licensePlateOffset; }
+    public Vec3 getBackLicensePlateOffset() { return (this.frameItem != null) ? this.frameItem.getBackLicensePlateOffset() : Vec3.ZERO; }
 
     public int getCapacity() {
         return capacity;
