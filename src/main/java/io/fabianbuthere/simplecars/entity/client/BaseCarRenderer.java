@@ -11,7 +11,9 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import io.fabianbuthere.simplecars.SimplecarsMod;
 import io.fabianbuthere.simplecars.entity.custom.BaseCarEntity;
+import io.fabianbuthere.simplecars.item.custom.AbstractFrameItem;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.model.geom.ModelLayerLocation;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.entity.EntityRendererProvider;
@@ -20,13 +22,17 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 
 public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<BaseCarEntity>> {
     private final Map<String, ResourceLocation> plateTextureCache = new HashMap<>();
+    private final EntityRendererProvider.Context context;
+    private final Map<ModelLayerLocation, BaseCarModel<BaseCarEntity>> modelCache = new HashMap<>();
 
     public BaseCarRenderer(EntityRendererProvider.Context pContext) {
         super(pContext, new BaseCarModel<>(pContext.bakeLayer(ModModelLayers.BASE_CAR_LAYER)), 1.5f);
+        this.context = pContext;
     }
 
     public static BufferedImage generatePlate(String text) {
@@ -114,13 +120,19 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
     }
 
     @Override
-    @SuppressWarnings("removal")
-    public ResourceLocation getTextureLocation(BaseCarEntity pEntity) {
-        return new ResourceLocation(SimplecarsMod.MOD_ID, "textures/entity/empty.png");
+    public @NotNull ResourceLocation getTextureLocation(BaseCarEntity pEntity) {
+        return pEntity.getFrameItem().getTextureLocation();
+    }
+
+    private BaseCarModel<BaseCarEntity> getModelForFrame(AbstractFrameItem frameItem) {
+        ModelLayerLocation layer = (frameItem != null) ? frameItem.getModelLayerLocation() : ModModelLayers.BASE_CAR_LAYER;
+        return modelCache.computeIfAbsent(layer, l -> new BaseCarModel<>(context.bakeLayer(l)));
     }
 
     @Override
     public void render(BaseCarEntity pEntity, float pEntityYaw, float pPartialTicks, PoseStack pPoseStack, MultiBufferSource pBuffer, int pPackedLight) {
+        AbstractFrameItem frameItem = pEntity.getFrameItem();
+        this.model = getModelForFrame(frameItem);
         super.render(pEntity, pEntityYaw, pPartialTicks, pPoseStack, pBuffer, pPackedLight);
         String plateText = pEntity.getLicensePlateText();
         ResourceLocation plateTexture = plateTextureCache.get(plateText);

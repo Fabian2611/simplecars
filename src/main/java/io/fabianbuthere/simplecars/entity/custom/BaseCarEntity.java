@@ -1012,4 +1012,8 @@ public class BaseCarEntity extends Mob {
     public boolean alwaysAccepts() {
         return super.alwaysAccepts();
     }
+
+    public AbstractFrameItem getFrameItem() {
+        return this.frameItem;
+    }
 }
