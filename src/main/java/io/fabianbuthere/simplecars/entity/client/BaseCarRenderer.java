@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.entity.MobRenderer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<BaseCarEntity>> {
@@ -86,13 +87,13 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
         }
     }
 
-    public void renderLicensePlate(PoseStack poseStack, MultiBufferSource buffer, int packedLight, ResourceLocation plateTexture, float yaw) {
+    public void renderLicensePlate(PoseStack poseStack, MultiBufferSource buffer, int packedLight, ResourceLocation plateTexture, float yaw, Vec3 offset) {
         if (plateTexture == null) return;
 
         poseStack.pushPose();
         // Rotate with car's yaw
         poseStack.mulPose(Axis.YP.rotationDegrees(-yaw));
-        poseStack.translate(-1, 0, 0); // Adjust as needed
+        poseStack.translate(offset.x, offset.y, offset.z);
 
         VertexConsumer vc = buffer.getBuffer(RenderType.entityCutout(plateTexture));
         Matrix4f matrix = poseStack.last().pose();
@@ -103,10 +104,11 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
         int overlay = OverlayTexture.NO_OVERLAY;
         float nx = 0f, ny = 0f, nz = 1f;
 
-        vc.vertex(matrix, minX, minY, z).color(color).uv(u0, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
-        vc.vertex(matrix, maxX, minY, z).color(color).uv(u1, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
-        vc.vertex(matrix, maxX, maxY, z).color(color).uv(u1, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        // Reverse winding order and swap UVs for v
         vc.vertex(matrix, minX, maxY, z).color(color).uv(u0, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        vc.vertex(matrix, maxX, maxY, z).color(color).uv(u1, v0).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        vc.vertex(matrix, maxX, minY, z).color(color).uv(u1, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
+        vc.vertex(matrix, minX, minY, z).color(color).uv(u0, v1).overlayCoords(overlay).uv2(packedLight).normal(nx, ny, nz).endVertex();
 
         poseStack.popPose();
     }
@@ -127,6 +129,6 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
             plateTexture = uploadPlateTexture(plateImage, "plate_" + pEntity.getUUID() + "_" + plateText.toLowerCase());
             plateTextureCache.put(plateText, plateTexture);
         }
-        renderLicensePlate(pPoseStack, pBuffer, pPackedLight, plateTexture, pEntityYaw);
+        renderLicensePlate(pPoseStack, pBuffer, pPackedLight, plateTexture, pEntityYaw, pEntity.getLicensePlateOffset());
     }
 }

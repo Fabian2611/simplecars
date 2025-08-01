@@ -55,11 +55,12 @@ public class BaseCarEntity extends Mob {
     private double carMaximumUpwardDrive = 0.75;
     private float weight = 60.0F;
     private String licensePlateText = "ABC-0123";
+    private Vec3 licensePlateOffset = new Vec3(0, 0.5, -2.1);
 
     private AbstractEngineItem engineItem;
     private AbstractFrameItem frameItem;
     private AbstractFuelTankItem fuelTankItem;
-    private AbstractWheelItem[] wheelItems = new AbstractWheelItem[4]; // Default initialization, size may change with frame
+    private AbstractWheelItem[] wheelItems;
 
     private static final Map<String, Double> FLUID_TO_FUEL_PER_MB = new HashMap<>();
 
@@ -121,6 +122,7 @@ public class BaseCarEntity extends Mob {
     public float getCarSteeringFactor() { return carSteeringFactor; }
     public double getCarMaximumUpwardDrive() { return carMaximumUpwardDrive; }
     public String getLicensePlateText() { return licensePlateText; }
+    public Vec3 getLicensePlateOffset() { return licensePlateOffset; }
 
     public int getCapacity() {
         return capacity;
