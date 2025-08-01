@@ -10,4 +10,3 @@ public class ModModelLayers {
             new ResourceLocation(SimplecarsMod.MOD_ID, "base_car_layer"), "main");
 
 }
-
