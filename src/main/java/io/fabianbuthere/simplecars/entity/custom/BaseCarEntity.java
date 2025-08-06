@@ -12,6 +12,7 @@ import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
@@ -776,172 +777,114 @@ public class BaseCarEntity extends Mob {
         }
     }
 
+
+    // --- CONSTANTS ---
+    private static final double MASS_REFERENCE = 1200.0;           // Reference mass for scaling (kg)
+    private static final double MIN_WEIGHT_FACTOR = 0.6;           // Minimum weight factor
+    private static final double MAX_WEIGHT_FACTOR = 1.4;           // Maximum weight factor
+    private static final double TICK_DELTA_TIME = 1.0;             // Duration of one tick (ticks)
+    private static final double ROLLING_RESISTANCE = 0.015;        // Rolling resistance (blocks/tick²)
+    private static final double STEERING_FALLOFF_FACTOR = 1.08;    // How quickly steering sensitivity falls off with speed
+    private static final double MIN_STEERING_LIMIT = 0.5;          // Minimum steering effectiveness at high speed
+    private static final double MIN_TURNING_SPEED = 0.10;          // Minimum speed at which turning is effective (blocks/tick)
+    private static final double DOWNFORCE = 1.0;                   // Downforce multiplier
+    private static final double STEERING_STRENGTH = 2.5;           // Yaw degrees per tick at full steer and speed (tune for feel)
+
     @Override
     public void travel(@NotNull Vec3 travelVector) {
-        if (hasAllPartsRequiredForTravel() && getTotalFuelUnits() > 0.0 && this.isVehicle() && !this.getPassengers().isEmpty() && this.getPassengers().get(0) instanceof Player player && (!level().isClientSide || this.isControlledByLocalInstance())) {
-            float forward = player.zza;
-            float strafe = player.xxa;
+        if (hasAllPartsRequiredForTravel() && getTotalFuelUnits() > 0.0 && this.isVehicle() &&
+                !this.getPassengers().isEmpty() && this.getPassengers().get(0) instanceof Player player &&
+                (!level().isClientSide || this.isControlledByLocalInstance())) {
 
-            double maxSpeed = this.carMaxSpeed;
-            double acceleration = this.carAcceleration;
-            double brakeRate = this.carBrakeStrength;
-            double friction = this.carDrag;
-            float turnSpeed = this.carSteeringFactor;
-            double maxUpwardDrive = this.carMaximumUpwardDrive;
+            // --- INPUTS ---
+            float throttleInput = player.zza;  // Forward/backward (-1..1)
+            float steerInput = player.xxa;     // Left/right (-1..1)
 
-            float weightFactor = 500.0f / this.weight;
-            weightFactor = Math.max(0.6f, Math.min(weightFactor, 1.4f));
+            // --- CAR PARAMETERS ---
+            double maxSpeed = this.carMaxSpeed;                  // blocks/tick
+            double acceleration = this.carAcceleration;          // blocks/tick²
+            double brakeStrength = this.carBrakeStrength;        // blocks/tick²
+            float steeringFactor = this.carSteeringFactor;       // steer input scaling
+            double maxStepHeight = this.carMaximumUpwardDrive;   // blocks
+            double weight = this.weight;                         // kg
 
-            double weightedAcceleration = acceleration * weightFactor;
-            double weightedBrakeRate = brakeRate * weightFactor;
-            double weightedMaxSpeed = maxSpeed * weightFactor;
+            // --- STEP HEIGHT (LEDGE CLIMBING) ---
+            this.setMaxUpStep((float) maxStepHeight);
 
-            double velocity = getCarForwardVelocity();
+            // --- WEIGHT FACTOR ---
+            double weightFactor = MASS_REFERENCE / weight;
+            weightFactor = Mth.clamp(weightFactor, MIN_WEIGHT_FACTOR, MAX_WEIGHT_FACTOR);
 
-            boolean isNearlyStopped = Math.abs(velocity) < 0.01;
-            if (isNearlyStopped) {
-                if (Math.abs(strafe) > 0.01) {
-                    // Only accumulate pre-steer when nearly stopped
-                    pendingSteerInput += strafe * 0.09f;
-                    pendingSteerInput = Math.max(-0.25f, Math.min(0.25f, pendingSteerInput));
+            // --- VEHICLE STATE ---
+            double currentVel = getCarForwardVelocity(); // Signed, blocks/tick
+            double absVel = Math.abs(currentVel);
+
+            // --- ACCELERATION/DECELERATION ---
+            double targetSpeed = throttleInput * maxSpeed;
+            double speedDiff = targetSpeed - currentVel;
+
+            // Apply realistic acceleration/braking
+            double maxDeltaV;
+            if (Math.abs(throttleInput) > 0.01) {
+                // Accelerate or engine brake
+                maxDeltaV = acceleration * weightFactor * TICK_DELTA_TIME;
+            } else {
+                // Braking
+                maxDeltaV = brakeStrength * weightFactor * TICK_DELTA_TIME;
+            }
+
+            // Clamp the change in velocity
+            double deltaV = Mth.clamp(speedDiff, -maxDeltaV, maxDeltaV);
+            double nextVel = currentVel + deltaV;
+
+            // --- Natural rolling resistance (simulate friction/drag) ---
+            if (Math.abs(throttleInput) < 0.01 && Math.abs(nextVel) > 0.001) {
+                double friction = Math.signum(nextVel) * ROLLING_RESISTANCE * weightFactor * TICK_DELTA_TIME;
+                if (Math.abs(friction) > Math.abs(nextVel)) {
+                    nextVel = 0.0;
                 } else {
-                    pendingSteerInput *= 0.93f;
-                    if (Math.abs(pendingSteerInput) < 0.01f) pendingSteerInput = 0.0f;
-                }
-                preSteerBlend = 0.0f;
-            } else {
-                // Start blending out pre-steer as soon as we start moving
-                if (preSteerBlend == 0.0f && Math.abs(pendingSteerInput) > 0.01f) {
-                    preSteerBlend = PRESTEER_BLEND_TIME * 20f; // ticks
-                    lastPendingSteer = pendingSteerInput;
-                }
-                pendingSteerInput = 0.0f;
-            }
-
-            float effectiveSteer;
-            if (preSteerBlend > 0.0f) {
-                float blendAlpha = preSteerBlend / (PRESTEER_BLEND_TIME * 20f);
-                effectiveSteer = -lastPendingSteer * blendAlpha + strafe * (1.0f - blendAlpha);
-                preSteerBlend -= 1.0f;
-                if (preSteerBlend < 0.0f) preSteerBlend = 0.0f;
-            } else {
-                effectiveSteer = isNearlyStopped ? -pendingSteerInput : strafe;
-            }
-            double steerAtten = Math.max(0.4, 1.0 - (Math.abs(velocity) / weightedMaxSpeed) * 0.7);
-            if (isNearlyStopped && Math.abs(forward) > 0.01 && Math.abs(effectiveSteer) > 0.01) {
-                steerAtten *= 1.2;
-            }
-            float steerDir = velocity > 0 ? 1f : -1f;
-            if (Math.abs(effectiveSteer) > 0.01) {
-                this.setYRot((float) (this.getYRot() - effectiveSteer * turnSpeed * steerAtten * steerDir));
-            }
-
-            if (forward > 0) {
-                velocity += weightedAcceleration;
-            } else if (forward < 0) {
-                velocity -= weightedBrakeRate;
-            } else {
-                if (velocity > 0) {
-                    velocity -= friction;
-                    if (velocity < 0) velocity = 0;
-                } else if (velocity < 0) {
-                    velocity += friction;
-                    if (velocity > 0) velocity = 0;
+                    nextVel -= friction;
                 }
             }
 
-            velocity = Math.max(Math.min(velocity, weightedMaxSpeed), -weightedMaxSpeed * 0.4);
+            // --- STEERING DYNAMICS ---
+            float steer = -steerInput * steeringFactor; // Default: forward steering is correct
 
-            double yawRad = Math.toRadians(this.getYRot());
-            double dx = -Math.sin(yawRad) * velocity;
-            double dz =  Math.cos(yawRad) * velocity;
-            double dy = this.getDeltaMovement().y;
-
-            // Save intended movement for wall sliding logic
-            double intendedDx = dx;
-            double intendedDz = dz;
-            boolean wallBlocked = false;
-
-            boolean tryStepUp = this.onGround() && (Math.abs(dx) > 0.0001 || Math.abs(dz) > 0.0001);
-            if (tryStepUp && maxUpwardDrive > 0) {
-                AABB box = this.getBoundingBox();
-                AABB nextBox = box.move(dx, 0, dz);
-                boolean collides = !level().noCollision(this, nextBox);
-
-                if (collides) {
-                    double step = Math.max(0.05, Math.min(0.2, maxUpwardDrive / 5.0));
-                    double climbed = 0;
-                    boolean canStep = false;
-                    while (climbed < maxUpwardDrive) {
-                        climbed += step;
-                        nextBox = box.move(dx, climbed, dz);
-                        if (level().noCollision(this, nextBox)) {
-                            dy = climbed;
-                            canStep = true;
-                            break;
-                        }
-                    }
-                    if (!canStep) {
-                        wallBlocked = true;
-                    }
-                }
+            // Invert steering when going backwards (for realism)
+            if (nextVel < -MIN_TURNING_SPEED) {
+                steer = -steer; // Invert steering for reverse
             }
 
-            if (wallBlocked) {
-                // Project intended movement onto wall tangent
-                // Find the wall normal by checking which direction is blocked
-                Vec3 pos = this.position();
-                double probeDist = 0.2;
-                Vec3[] probes = new Vec3[] {
-                    new Vec3(probeDist, 0, 0), new Vec3(-probeDist, 0, 0),
-                    new Vec3(0, 0, probeDist), new Vec3(0, 0, -probeDist)
-                };
-                Vec3 wallNormal = null;
-                for (Vec3 probe : probes) {
-                    AABB probeBox = this.getBoundingBox().move(probe.x, 0, probe.z);
-                    if (!level().noCollision(this, probeBox)) {
-                        wallNormal = probe.normalize();
-                        break;
-                    }
-                }
-                if (wallNormal != null) {
-                    // Project intended movement onto wall tangent
-                    Vec3 moveVec = new Vec3(intendedDx, 0, intendedDz);
-                    Vec3 tangent = moveVec.subtract(wallNormal.scale(moveVec.dot(wallNormal)));
-                    // Limit forward speed to 40% of max
-                    double tangentLen = tangent.length();
-                    double maxSlide = weightedMaxSpeed * 0.4;
-                    if (tangentLen > maxSlide) {
-                        tangent = tangent.scale(maxSlide / tangentLen);
-                    }
-                    dx = tangent.x;
-                    dz = tangent.z;
-                    velocity = Math.max(Math.min(velocity, weightedMaxSpeed * 0.4), -weightedMaxSpeed * 0.4);
-                } else {
-                    dx = 0;
-                    dz = 0;
-                }
+            // Steering effectiveness decreases at high speed (for realism)
+            double steerVelLimiter = Mth.clamp(1.0 - (Math.abs(nextVel) / (maxSpeed * STEERING_FALLOFF_FACTOR)),
+                    MIN_STEERING_LIMIT, 1.0);
+            float effectiveSteer = steer * (float)steerVelLimiter;
+
+            // Car-like turning: rotate yaw based on steering and speed
+            if (Math.abs(effectiveSteer) > 0.001 && Math.abs(nextVel) > MIN_TURNING_SPEED) {
+                float yawDelta = (float)(effectiveSteer * Math.abs(nextVel) * STEERING_STRENGTH);
+                this.setYRot(this.getYRot() + yawDelta);
+                this.yRotO = this.getYRot();
             }
 
-            if (!this.onGround()) dy -= 0.08;
-            else if (dy < 0) dy = 0;
+            // Get forward vector based on new yaw
+            float yaw = this.getYRot();
+            double radYaw = Math.toRadians(yaw);
+            double forwardX = -Mth.sin((float) radYaw);
+            double forwardZ = Mth.cos((float) radYaw);
 
-            this.setDeltaMovement(dx, dy, dz);
-            this.move(MoverType.SELF, this.getDeltaMovement());
+            // --- VERTICAL MOTION (Gravity/Jump/Step) ---
+            double dy = this.getDeltaMovement().y; // Retain vertical velocity
 
-            useUpFuel(velocity);
-
-            if (!this.onGround()) {
-                this.setDeltaMovement(this.getDeltaMovement().multiply(0.98, 1, 0.98));
-            }
-
-            if (!this.level().isClientSide || this.isControlledByLocalInstance()) {
-                updateCarForwardVelocity(velocity);
-            }
+            // --- APPLY MOVEMENT VECTOR ---
+            this.setDeltaMovement(forwardX * nextVel * DOWNFORCE, dy, forwardZ * nextVel * DOWNFORCE);
+            updateCarForwardVelocity(nextVel);
+            super.travel(this.getDeltaMovement());
         } else {
             super.travel(travelVector);
         }
     }
+
 
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {

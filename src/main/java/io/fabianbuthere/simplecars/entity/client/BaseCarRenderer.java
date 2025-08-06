@@ -119,9 +119,10 @@ public class BaseCarRenderer extends MobRenderer<BaseCarEntity, BaseCarModel<Bas
         poseStack.popPose();
     }
 
+    @SuppressWarnings("removal")
     @Override
     public @NotNull ResourceLocation getTextureLocation(BaseCarEntity pEntity) {
-        return pEntity.getFrameItem().getTextureLocation();
+        return (pEntity.getFrameItem() != null) ? pEntity.getFrameItem().getTextureLocation() : new ResourceLocation(SimplecarsMod.MOD_ID, "textures/entity/empty.png");
     }
 
     private BaseCarModel<BaseCarEntity> getModelForFrame(AbstractFrameItem frameItem) {
