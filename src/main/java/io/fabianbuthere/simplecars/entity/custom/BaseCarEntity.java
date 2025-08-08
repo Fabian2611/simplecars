@@ -924,68 +924,68 @@ public class BaseCarEntity extends Mob {
 
     // --- "CONSTANTS" ---
     // Base physics parameters
-    public static double REFERENCE_WEIGHT = 500.0;
-    public static double MIN_WEIGHT_FACTOR = 0.4;
-    public static double MAX_WEIGHT_FACTOR = 2.0;
-    public static double TICK_DELTA_TIME = 1.0;
-    public static double TICKS_PER_SECOND = 20.0;
-    public static double CONTROL_DEADZONE = 0.01;
+    public static double REFERENCE_WEIGHT = 500.0;           // Reference vehicle mass used to normalize handling/forces (higher car weight => lower weightFactor)
+    public static double MIN_WEIGHT_FACTOR = 0.4;            // Lower clamp for weightFactor to prevent overly sluggish handling on heavy cars
+    public static double MAX_WEIGHT_FACTOR = 2.0;            // Upper clamp for weightFactor to prevent overly twitchy handling on light cars
+    public static double TICK_DELTA_TIME = 1.0;              // Physics integration step in ticks (1 = one Minecraft tick)
+    public static double TICKS_PER_SECOND = 20.0;            // Conversion factor from seconds to ticks (20 TPS, usually)
+    public static double CONTROL_DEADZONE = 0.01;            // Minimum absolute input considered intentional (epsilon)
 
     // Resistance and stability
-    public static double ROLLING_RESISTANCE = 0.008;
-    public static double AIR_RESISTANCE = 0.002;
-    public static double DOWNFORCE_MULTIPLIER = 0.98;
+    public static double ROLLING_RESISTANCE = 0.008;         // Baseline opposing force from tire contact with ground (per tick)
+    public static double AIR_RESISTANCE = 0.002;             // Coefficient for quadratic aerodynamic drag with speed
+    public static double DOWNFORCE_MULTIPLIER = 0.98;        // Multiplier on horizontal motion to simulate downforce/traction (slightly damps slide)
 
     // Steering parameters
-    public static double MIN_TURNING_SPEED = 0.045;
-    public static double STEERING_SPEED_FALLOFF = 0.6;
-    public static double MIN_STEERING_EFFECTIVENESS = 0.25;
-    public static double TURNING_RADIUS_FACTOR = 2.1;
-    public static double REVERSE_STEERING_FACTOR = 0.7;
-    public static double WEIGHT_STEERING_POWER = 0.3;
-    public static double STEERING_VELOCITY_DENOMINATOR = 0.3;
-    public static double YAW_CHANGE_MULTIPLIER = 0.45;
-    public static double MAX_STEERING_ANGLE_BASE = 45.0;
-    public static double MAX_STEERING_SPEED_REDUCTION = 0.7;
+    public static double MIN_TURNING_SPEED = 0.045;          // Minimum forward speed required for steering to have effect
+    public static double STEERING_SPEED_FALLOFF = 0.6;       // How much steering authority reduces as speed rises (0=no falloff, 1=strong falloff)
+    public static double MIN_STEERING_EFFECTIVENESS = 0.25;  // Floor for steering authority at very high speeds
+    public static double TURNING_RADIUS_FACTOR = 2.1;        // Scales base steering into turning radius (higher = tighter turns)
+    public static double REVERSE_STEERING_FACTOR = 0.7;      // Fraction of steering effectiveness applied when driving in reverse
+    public static double WEIGHT_STEERING_POWER = 0.3;        // Exponent controlling how weightFactor influences steering power
+    public static double STEERING_VELOCITY_DENOMINATOR = 0.3;// Normalization factor for steering effectiveness vs vehicle speed
+    public static double YAW_CHANGE_MULTIPLIER = 0.45;       // Scales computed steering into yaw rotation per tick
+    public static double MAX_STEERING_ANGLE_BASE = 45.0;     // Maximum steering angle (degrees) at low speed before speed-based reductions
+    public static double MAX_STEERING_SPEED_REDUCTION = 0.7; // Fraction by which max steering angle is reduced at top speed
 
     // General driving parameters
-    public static double ENHANCED_BRAKING_MULTIPLIER = 1.5;
-    public static double COMPLETE_STOP_THRESHOLD = 0.02;
-    public static double FUEL_CONSUMPTION_IDLE = 0.1;
+    public static double ENHANCED_BRAKING_MULTIPLIER = 1.5;  // Extra braking when throttle input opposes current velocity
+    public static double COMPLETE_STOP_THRESHOLD = 0.02;     // Speed below which velocity is snapped to zero to avoid micro creeping
+    public static double FUEL_CONSUMPTION_IDLE = 0.1;        // Base fuel cost per tick for maintaining/idle motion
 
     // Handbrake and quick stop parameters
-    public static double HANDBRAKE_FORCE_MULTIPLIER = 1.8;
-    public static double HANDBRAKE_MIN_EFFECTIVENESS = 0.5;
-    public static double HANDBRAKE_WEIGHT_POWER = 0.4;
-    public static double QUICK_STOP_EXTRA_FORCE = 1.3;
-    public static double HANDBRAKE_FORCE_CLAMP = 0.12;
-    public static double HANDBRAKE_GRADUAL_FACTOR = 0.85;
-    public static double HANDBRAKE_LOW_SPEED_SCALING = 0.5;
-    public static double HANDBRAKE_STOP_VELOCITY = 0.01;
+    public static double HANDBRAKE_FORCE_MULTIPLIER = 1.8;   // Strength multiplier vs normal braking when handbrake is engaged
+    public static double HANDBRAKE_MIN_EFFECTIVENESS = 0.5;  // Minimum handbrake effectiveness after weight scaling (for heavy cars)
+    public static double HANDBRAKE_WEIGHT_POWER = 0.4;       // Exponent for weightFactor’s influence on handbrake force
+    public static double QUICK_STOP_EXTRA_FORCE = 1.3;       // Additional speed-based force during quick-stop mode
+    public static double HANDBRAKE_FORCE_CLAMP = 0.12;       // Maximum deceleration per tick under handbrake to avoid jerky stops
+    public static double HANDBRAKE_GRADUAL_FACTOR = 0.85;    // Gradual application factor for a smoother handbrake feel
+    public static double HANDBRAKE_LOW_SPEED_SCALING = 0.5;  // Reduces handbrake strength at very low speeds for smoother final stop
+    public static double HANDBRAKE_STOP_VELOCITY = 0.01;     // Below this speed handbrake won’t push the car into reverse (epsilon)
 
     // Drift mechanics parameters
-    public static double DRIFT_SPEED_THRESHOLD = 0.1;
-    public static double DRIFT_STEERING_THRESHOLD = 0.05;
-    public static double DRIFT_TRACTION_REDUCTION = 0.5;
-    public static double DRIFT_SPEED_BOOST_FACTOR = 1.8;
-    public static double DRIFT_TURNING_ENHANCEMENT = 1.8;
-    public static double DRIFT_SIDE_SLIP_FACTOR = 0.7;
-    public static double DRIFT_YAW_MULTIPLIER = 1.6;
-    public static double DRIFT_TRANSITION_SMOOTHING = 0.15;
-    public static double DRIFT_SIDE_SLIP_SPEED_SCALING = 0.6;
-    public static double DRIFT_PASSIVE_SLIP = 0.2;
-    public static double DRIFT_THROTTLE_BONUS = 0.3;
+    public static double DRIFT_SPEED_THRESHOLD = 0.1;        // Minimum speed required to enter/maintain a drift (blocks / tick)
+    public static double DRIFT_STEERING_THRESHOLD = 0.05;    // Minimum steering input considered for drift entry
+    public static double DRIFT_TRACTION_REDUCTION = 0.5;     // Fraction of longitudinal traction removed while drifting (more slide)
+    public static double DRIFT_SPEED_BOOST_FACTOR = 1.8;     // Temporary speed cap multiplier while actively drifting
+    public static double DRIFT_TURNING_ENHANCEMENT = 1.8;    // Steering multiplier applied during drift for faster rotation
+    public static double DRIFT_SIDE_SLIP_FACTOR = 0.7;       // Base magnitude of lateral slip generated during drift
+    public static double DRIFT_YAW_MULTIPLIER = 1.6;         // Additional yaw rate applied while drifting
+    public static double DRIFT_TRANSITION_SMOOTHING = 0.15;  // Blend factor controlling smoothness of drift entry/exit
+    public static double DRIFT_SIDE_SLIP_SPEED_SCALING = 0.6;// Power by which lateral slip scales with speed (basically exponential)
+    public static double DRIFT_PASSIVE_SLIP = 0.2;           // Lateral slip applied even with zero steering during drift
+    public static double DRIFT_THROTTLE_BONUS = 0.3;         // Extra longitudinal acceleration permitted when throttling in drift
 
     // Drift boost parameters
-    public static double DRIFT_BOOST_ACCUMULATION_RATE = 0.06;
-    public static double DRIFT_BOOST_MAX_MULTIPLIER = 2.5;
-    public static double DRIFT_BOOST_DECAY_RATE = 0.004;
-    public static double DRIFT_BOOST_MIN_DURATION = 8.0;
-    public static double DRIFT_BOOST_MAX_DURATION = 80.0;
-    public static double DRIFT_BOOST_MIN_SECONDS = 4.0;
-    public static double DRIFT_BOOST_MAX_SECONDS = 15.0;
-    public static double BOOST_THRUST_FACTOR = 0.7;
-    public static double BOOST_MAINTAIN_EPSILON = 0.002; // Speed cap tolerance while maintaining
+    public static double DRIFT_BOOST_ACCUMULATION_RATE = 0.06; // Rate at which drift “quality” accumulates to determine boost strength
+    public static double DRIFT_BOOST_MAX_MULTIPLIER = 2.5;     // Maximum post-drift speed multiplier (1.0 = no boost)
+    public static double DRIFT_BOOST_DECAY_RATE = 0.004;       // Per-tick decay of boost multiplier back toward 1.0
+    public static double DRIFT_BOOST_MIN_DURATION = 8.0;       // Minimum accumulated drift to grant any boost (ticks)
+    public static double DRIFT_BOOST_MAX_DURATION = 80.0;      // Accumulated drift considered “perfect” for max boost (ticks)
+    public static double DRIFT_BOOST_MIN_SECONDS = 4.0;        // Minimum post-drift boost duration (seconds)
+    public static double DRIFT_BOOST_MAX_SECONDS = 15.0;       // Maximum post-drift boost duration (seconds)
+    public static double BOOST_THRUST_FACTOR = 0.7;            // Fraction of engine acceleration added as constant thrust while boosting
+    public static double BOOST_MAINTAIN_EPSILON = 0.002;       // Tolerance when clamping velocity to the boost “maintain speed” cap
 
     @Override
     public void travel(@NotNull Vec3 travelVector) {
