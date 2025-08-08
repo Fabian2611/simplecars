@@ -35,6 +35,7 @@ import net.minecraftforge.fluids.FluidUtil;
 import net.minecraftforge.registries.ForgeRegistries;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.annotations.Range;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -74,7 +75,6 @@ public class BaseCarEntity extends Mob {
 
     private static final EntityDataAccessor<Float> FORWARD_VELOCITY =
             SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
-
     private static final EntityDataAccessor<String> ENGINE_ID =
             SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.STRING);
     private static final EntityDataAccessor<String> FRAME_ID =
@@ -97,11 +97,75 @@ public class BaseCarEntity extends Mob {
             SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Float> SYNCED_CAR_WEIGHT =
             SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> DRIFT_DURATION =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> IS_DRIFTING =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Float> BOOST_REMAINING =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> BOOST_MULTIPLIER =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Float> LAST_STEER_INPUT =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.FLOAT);
+    private static final EntityDataAccessor<Boolean> IS_DRIFTING_POSSIBLE =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> IS_BRAKING =
+            SynchedEntityData.defineId(BaseCarEntity.class, EntityDataSerializers.BOOLEAN);
 
     private float pendingSteerInput = 0.0f;
     private float preSteerBlend = 0.0f;
     private float lastPendingSteer = 0.0f;
     private static final float PRESTEER_BLEND_TIME = 0.18f; // seconds
+
+    private double getDriftDuration() {
+        return this.entityData.get(DRIFT_DURATION);
+    }
+    private void setDriftDuration(double value) {
+        this.entityData.set(DRIFT_DURATION, (float)value);
+    }
+
+    private boolean getIsDrifting() {
+        return this.entityData.get(IS_DRIFTING);
+    }
+    private void setIsDrifting(boolean value) {
+        this.entityData.set(IS_DRIFTING, value);
+    }
+
+    private double getBoostRemaining() {
+        return this.entityData.get(BOOST_REMAINING);
+    }
+    private void setBoostRemaining(double value) {
+        this.entityData.set(BOOST_REMAINING, (float)value);
+    }
+
+    private double getBoostMultiplier() {
+        return this.entityData.get(BOOST_MULTIPLIER);
+    }
+    private void setBoostMultiplier(double value) {
+        this.entityData.set(BOOST_MULTIPLIER, (float)value);
+    }
+
+    private double getLastSteerInput() {
+        return this.entityData.get(LAST_STEER_INPUT);
+    }
+    private void setLastSteerInput(double value) {
+        this.entityData.set(LAST_STEER_INPUT, (float)value);
+    }
+
+    private boolean getIsDriftingPossible() {
+        return this.entityData.get(IS_DRIFTING_POSSIBLE);
+    }
+    private void setIsDriftingPossible(boolean value) {
+        this.entityData.set(IS_DRIFTING_POSSIBLE, value);
+    }
+
+    public boolean isBraking() {
+        return this.entityData.get(IS_BRAKING);
+    }
+    public void setBraking(boolean braking) {
+        SimplecarsMod.LOGGER.debug("Setting braking state to: {}", braking);
+        this.entityData.set(IS_BRAKING, braking);
+    }
 
     public BaseCarEntity(EntityType<? extends Mob> pEntityType, Level pLevel) {
         super(pEntityType, pLevel);
@@ -163,10 +227,20 @@ public class BaseCarEntity extends Mob {
 
         pCompound.put("FluidTank", this.serializeFluidTank());
 
+        // Drift state
+        pCompound.putBoolean("IsBraking", this.isBraking());
+        pCompound.putDouble("DriftDuration", this.getDriftDuration());
+        pCompound.putBoolean("IsDrifting", this.getIsDrifting());
+        pCompound.putDouble("BoostRemaining", this.getBoostRemaining());
+        pCompound.putDouble("BoostMultiplier", this.getBoostMultiplier());
+        pCompound.putDouble("LastSteerInput", this.getLastSteerInput());
+        pCompound.putBoolean("IsDriftingPossible", this.getIsDriftingPossible());
+
         if (!this.level().isClientSide) {
             pCompound.putFloat("ForwardVelocity", (float) this.getSyncedForwardVelocity());
         }
     }
+
 
     private CompoundTag serializeFluidTank() {
         CompoundTag tag = new CompoundTag();
@@ -288,8 +362,17 @@ public class BaseCarEntity extends Mob {
             this.setSyncedForwardVelocity(pCompound.getFloat("ForwardVelocity"));
         }
 
+        // Drift state
+        if (pCompound.contains("IsBraking")) this.setBraking(pCompound.getBoolean("IsBraking"));
+        if (pCompound.contains("DriftDuration")) this.setDriftDuration(pCompound.getDouble("DriftDuration"));
+        if (pCompound.contains("IsDrifting")) this.setIsDrifting(pCompound.getBoolean("IsDrifting"));
+        if (pCompound.contains("BoostRemaining")) this.setBoostRemaining(pCompound.getDouble("BoostRemaining"));
+        if (pCompound.contains("BoostMultiplier")) this.setBoostMultiplier(pCompound.getDouble("BoostMultiplier"));
+        if (pCompound.contains("LastSteerInput")) this.setLastSteerInput(pCompound.getDouble("LastSteerInput"));
+        if (pCompound.contains("IsDriftingPossible")) this.setIsDriftingPossible(pCompound.getBoolean("IsDriftingPossible"));
+
         updateCarWeight();
-        updateCarStatsFromParts(); // <-- always recalculate stats from parts after loading
+        updateCarStatsFromParts(); // always recalculate stats from parts after loading
         syncCarData();
     }
 
@@ -308,6 +391,14 @@ public class BaseCarEntity extends Mob {
         this.entityData.define(SYNCED_CAR_STEER, 8.0F);
         this.entityData.define(SYNCED_CAR_UPWARD_DRIVE, 0.75F);
         this.entityData.define(SYNCED_CAR_WEIGHT, 60.0F);
+        // Add drift-related synced data
+        this.entityData.define(IS_BRAKING, false);
+        this.entityData.define(DRIFT_DURATION, 0.0F);
+        this.entityData.define(IS_DRIFTING, false);
+        this.entityData.define(BOOST_REMAINING, 0.0F);
+        this.entityData.define(BOOST_MULTIPLIER, 1.0F);
+        this.entityData.define(LAST_STEER_INPUT, 0.0F);
+        this.entityData.define(IS_DRIFTING_POSSIBLE, true);
     }
 
     private double getSyncedForwardVelocity() {
@@ -516,11 +607,13 @@ public class BaseCarEntity extends Mob {
     }
 
     @Override
-    protected void actuallyHurt(DamageSource pDamageSource, float pDamageAmount) {
+    protected void actuallyHurt(@NotNull DamageSource pDamageSource, float pDamageAmount) {
     }
 
+
+    // TODO: Sounds
     @Override
-    protected @Nullable SoundEvent getHurtSound(DamageSource pDamageSource) {
+    protected @Nullable SoundEvent getHurtSound(@NotNull DamageSource pDamageSource) {
         return null;
     }
 
@@ -777,18 +870,69 @@ public class BaseCarEntity extends Mob {
         }
     }
 
+    private boolean isDriftingAllowed() {
+        return this.getIsDriftingPossible();
+    }
 
-    // --- CONSTANTS ---
-    private static final double MASS_REFERENCE = 1200.0;           // Reference mass for scaling (kg)
-    private static final double MIN_WEIGHT_FACTOR = 0.6;           // Minimum weight factor
-    private static final double MAX_WEIGHT_FACTOR = 1.4;           // Maximum weight factor
-    private static final double TICK_DELTA_TIME = 1.0;             // Duration of one tick (ticks)
-    private static final double ROLLING_RESISTANCE = 0.015;        // Rolling resistance (blocks/tick²)
-    private static final double STEERING_FALLOFF_FACTOR = 1.08;    // How quickly steering sensitivity falls off with speed
-    private static final double MIN_STEERING_LIMIT = 0.5;          // Minimum steering effectiveness at high speed
-    private static final double MIN_TURNING_SPEED = 0.10;          // Minimum speed at which turning is effective (blocks/tick)
-    private static final double DOWNFORCE = 1.0;                   // Downforce multiplier
-    private static final double STEERING_STRENGTH = 2.5;           // Yaw degrees per tick at full steer and speed (tune for feel)
+    // --- "CONSTANTS" ---
+// Base physics parameters
+    public static double REFERENCE_WEIGHT = 500.0;          // Base weight used to normalize weight calculations
+    public static double MIN_WEIGHT_FACTOR = 0.4;           // Lower limit for weight influence on handling
+    public static double MAX_WEIGHT_FACTOR = 2.0;           // Upper limit for weight influence on handling
+    public static double TICK_DELTA_TIME = 1.0;             // Time unit for physics calculations (1 tick)
+
+    // Resistance and stability
+    public static double ROLLING_RESISTANCE = 0.008;        // Base resistance from wheels on ground
+    public static double AIR_RESISTANCE = 0.002;            // Wind resistance that increases with speed
+    public static double DOWNFORCE_MULTIPLIER = 0.98;       // Controls downward force for better traction
+
+    // Steering parameters
+    public static double MIN_TURNING_SPEED = 0.045;         // Minimum velocity needed for steering to work
+    public static double STEERING_SPEED_FALLOFF = 0.6;      // How much steering effectiveness reduces at high speed
+    public static double MIN_STEERING_EFFECTIVENESS = 0.25; // Minimum steering power at maximum speed
+    public static double TURNING_RADIUS_FACTOR = 2.1;       // Base multiplier for turning radius (higher = tighter turns)
+    public static double REVERSE_STEERING_FACTOR = 0.7;     // Steering effectiveness when in reverse
+    public static double WEIGHT_STEERING_POWER = 0.3;       // How strongly weight affects steering (higher = more influence)
+    public static double STEERING_VELOCITY_DENOMINATOR = 0.3; // Controls how steering scales with velocity
+    public static double YAW_CHANGE_MULTIPLIER = 0.45;      // Final multiplier for yaw rotation amount
+    public static double MAX_STEERING_ANGLE_BASE = 45.0;    // Maximum steering angle in degrees
+    public static double MAX_STEERING_SPEED_REDUCTION = 0.7; // How much max steering angle reduces at high speed
+
+    // General driving parameters
+    public static double ENHANCED_BRAKING_MULTIPLIER = 1.5; // Multiplier for braking with opposite throttle input
+    public static double COMPLETE_STOP_THRESHOLD = 0.02;    // Speed below which the car is considered stopped
+    public static double FUEL_CONSUMPTION_IDLE = 0.1;       // Base fuel consumption when maintaining speed
+
+    // Handbrake and quick stop parameters
+    public static double HANDBRAKE_FORCE_MULTIPLIER = 1.8;  // How much stronger handbrake is compared to normal braking
+    public static double HANDBRAKE_MIN_EFFECTIVENESS = 0.5; // Minimum handbrake effectiveness for lightweight cars
+    public static double HANDBRAKE_WEIGHT_POWER = 0.4;      // How strongly weight affects handbrake effectiveness
+    public static double QUICK_STOP_EXTRA_FORCE = 1.3;      // Additional force applied during quick stop mode
+    public static double HANDBRAKE_FORCE_CLAMP = 0.12;      // Maximum deceleration per tick when handbraking
+    public static double HANDBRAKE_GRADUAL_FACTOR = 0.85;   // Controls how gradually handbrake force is applied
+    public static double HANDBRAKE_LOW_SPEED_SCALING = 0.5; // Reduces handbrake force at low speeds
+    public static double HANDBRAKE_STOP_VELOCITY = 0.01;    // Speed below which handbrake won't push car backward
+
+    // Drift mechanics parameters
+    public static double DRIFT_SPEED_THRESHOLD = 0.1;       // Minimum speed required to enter drift mode
+    public static double DRIFT_STEERING_THRESHOLD = 0.05;   // Minimum steering input required to enter drift
+    public static double DRIFT_TRACTION_REDUCTION = 0.5;    // How much traction is reduced during drift
+    public static double DRIFT_SPEED_BOOST_FACTOR = 1.4;    // Speed multiplier during drift
+    public static double DRIFT_TURNING_ENHANCEMENT = 1.8;   // How much turning is enhanced during drift
+    public static double DRIFT_SIDE_SLIP_FACTOR = 0.7;      // Controls lateral movement strength during drift
+    public static double DRIFT_YAW_MULTIPLIER = 1.6;        // Multiplier for rotation rate during drift
+    public static double DRIFT_TRANSITION_SMOOTHING = 0.15; // Controls how smoothly car enters/exits drift
+    public static double DRIFT_SIDE_SLIP_SPEED_SCALING = 0.6; // How lateral slip scales with speed
+    public static double DRIFT_PASSIVE_SLIP = 0.2;          // Amount of slip that happens regardless of steering input
+    public static double DRIFT_THROTTLE_BONUS = 0.3;        // Extra acceleration applied when throttling during drift
+
+    // Drift boost parameters
+    public static double DRIFT_BOOST_ACCUMULATION_RATE = 0.04; // How quickly boost builds up during drift
+    public static double DRIFT_BOOST_MAX_MULTIPLIER = 2.5;     // Maximum speed multiplier from boost
+    public static double DRIFT_BOOST_DURATION_FACTOR = 6.0;    // How long boost lasts relative to drift duration
+    public static double DRIFT_BOOST_DECAY_RATE = 0.008;       // How quickly boost effect diminishes
+    public static double DRIFT_BOOST_MIN_DURATION = 8.0;       // Minimum drift duration to generate boost
+    public static double DRIFT_BOOST_MAX_DURATION = 240.0;      // Maximum drift duration for boost calculation
 
     @Override
     public void travel(@NotNull Vec3 travelVector) {
@@ -798,93 +942,325 @@ public class BaseCarEntity extends Mob {
 
             // --- INPUTS ---
             float throttleInput = player.zza;  // Forward/backward (-1..1)
-            float steerInput = player.xxa;     // Left/right (-1..1)
+            float steerInput = -player.xxa;    // Left/right (-1..1), corrected direction
+            boolean handbrakeActive = this.isBraking(); // Handbrake status
+            boolean hasMovementInput = Math.abs(throttleInput) > 0.01 || Math.abs(steerInput) > 0.01;
+
+            SimplecarsMod.LOGGER.debug("BaseCarEntity travel: throttle={}, steer={}, handbrake={}", throttleInput, steerInput, handbrakeActive);
 
             // --- CAR PARAMETERS ---
             double maxSpeed = this.carMaxSpeed;                  // blocks/tick
             double acceleration = this.carAcceleration;          // blocks/tick²
+            double drag = this.carDrag;                          // drag coefficient
             double brakeStrength = this.carBrakeStrength;        // blocks/tick²
-            float steeringFactor = this.carSteeringFactor;       // steer input scaling
+            float steeringFactor = this.carSteeringFactor;       // base steering multiplier
             double maxStepHeight = this.carMaximumUpwardDrive;   // blocks
             double weight = this.weight;                         // kg
 
             // --- STEP HEIGHT (LEDGE CLIMBING) ---
             this.setMaxUpStep((float) maxStepHeight);
 
-            // --- WEIGHT FACTOR ---
-            double weightFactor = MASS_REFERENCE / weight;
+            // --- WEIGHT FACTOR CALCULATION ---
+            double weightFactor = REFERENCE_WEIGHT / weight;
             weightFactor = Mth.clamp(weightFactor, MIN_WEIGHT_FACTOR, MAX_WEIGHT_FACTOR);
 
             // --- VEHICLE STATE ---
-            double currentVel = getCarForwardVelocity(); // Signed, blocks/tick
+            double currentVel = getCarForwardVelocity(); // Signed forward velocity
             double absVel = Math.abs(currentVel);
+            boolean isReversing = currentVel < -MIN_TURNING_SPEED;
+            boolean isMoving = absVel > DRIFT_SPEED_THRESHOLD;
 
-            // --- ACCELERATION/DECELERATION ---
-            double targetSpeed = throttleInput * maxSpeed;
-            double speedDiff = targetSpeed - currentVel;
+            // --- HANDBRAKE EFFECTIVENESS BASED ON WEIGHT ---
+            double handbrakeEffectiveness = Math.pow(weightFactor, HANDBRAKE_WEIGHT_POWER);
+            handbrakeEffectiveness = Mth.clamp(handbrakeEffectiveness, HANDBRAKE_MIN_EFFECTIVENESS, 1.0);
 
-            // Apply realistic acceleration/braking
-            double maxDeltaV;
-            if (Math.abs(throttleInput) > 0.01) {
-                // Accelerate or engine brake
-                maxDeltaV = acceleration * weightFactor * TICK_DELTA_TIME;
-            } else {
-                // Braking
-                maxDeltaV = brakeStrength * weightFactor * TICK_DELTA_TIME;
+            // --- DRIFT STATE TRACKING ---
+            boolean wasDrifting = this.getIsDrifting();
+
+            // Check if drifting is allowed by car configuration/parts
+            boolean driftingAllowed = this.isDriftingAllowed();
+
+            // NEW DRIFT LOGIC: Apply drifting whenever handbrake is active AND there's any movement input
+            // Only use quick stop when handbrake is the only input
+            boolean shouldDrift = handbrakeActive && hasMovementInput && isMoving && driftingAllowed;
+            boolean isQuickStop = handbrakeActive && !shouldDrift;
+
+            this.setIsDrifting(shouldDrift);
+            boolean isDrifting = shouldDrift; // Local variable for clarity
+
+            // Update drift duration and boost
+            if (isDrifting) {
+                // Increased accumulation rate and scale by speed and throttle input
+                double inputFactor = Math.abs(throttleInput) + Math.abs(steerInput) * 0.5;
+                inputFactor = Math.max(0.5, inputFactor); // Minimum 0.5 even with minimal input
+
+                double newDuration = this.getDriftDuration() +
+                        DRIFT_BOOST_ACCUMULATION_RATE *
+                                (1.0 + absVel * 2.0) *
+                                inputFactor;
+
+                this.setDriftDuration(Math.min(newDuration, DRIFT_BOOST_MAX_DURATION));
+            }
+            // Drift just ended - calculate boost
+            else if (wasDrifting && !isDrifting && this.getDriftDuration() > DRIFT_BOOST_MIN_DURATION && driftingAllowed) {
+                // Calculate boost strength and duration based on drift length with enhanced values
+                double driftQuality = Math.min(this.getDriftDuration() / DRIFT_BOOST_MAX_DURATION, 1.0);
+                double newBoostMult = 1.0 + (DRIFT_BOOST_MAX_MULTIPLIER - 1.0) * driftQuality;
+                double newBoostRemaining = this.getDriftDuration() * DRIFT_BOOST_DURATION_FACTOR;
+
+                this.setBoostMultiplier(newBoostMult);
+                this.setBoostRemaining(newBoostRemaining);
+            }
+            // Reset drift counter if not drifting
+            else if (!isDrifting) {
+                this.setDriftDuration(0.0);
             }
 
-            // Clamp the change in velocity
-            double deltaV = Mth.clamp(speedDiff, -maxDeltaV, maxDeltaV);
-            double nextVel = currentVel + deltaV;
+            // Apply and decay boost
+            if (this.getBoostRemaining() > 0) {
+                this.setBoostRemaining(this.getBoostRemaining() - 1.0);
 
-            // --- Natural rolling resistance (simulate friction/drag) ---
-            if (Math.abs(throttleInput) < 0.01 && Math.abs(nextVel) > 0.001) {
-                double friction = Math.signum(nextVel) * ROLLING_RESISTANCE * weightFactor * TICK_DELTA_TIME;
-                if (Math.abs(friction) > Math.abs(nextVel)) {
-                    nextVel = 0.0;
-                } else {
-                    nextVel -= friction;
+                // Slower boost decay for longer lasting boost
+                if (this.getBoostMultiplier() > 1.0) {
+                    this.setBoostMultiplier(Math.max(1.0, this.getBoostMultiplier() - DRIFT_BOOST_DECAY_RATE));
+                }
+
+                // When boost ends, reset multiplier
+                if (this.getBoostRemaining() <= 0) {
+                    this.setBoostMultiplier(1.0);
                 }
             }
 
-            // --- STEERING DYNAMICS ---
-            float steer = -steerInput * steeringFactor; // Default: forward steering is correct
+            // Store current steer input for drift detection
+            this.setLastSteerInput(steerInput);
 
-            // Invert steering when going backwards (for realism)
-            if (nextVel < -MIN_TURNING_SPEED) {
-                steer = -steer; // Invert steering for reverse
+            // --- ADJUST MAX SPEED FOR DRIFT AND BOOST ---
+            double effectiveMaxSpeed = maxSpeed;
+            double accelerationMultiplier = 1.0;  // Add this line
+
+            // Apply drift speed factor during drift
+            if (isDrifting) {
+                effectiveMaxSpeed *= DRIFT_SPEED_BOOST_FACTOR;
             }
 
-            // Steering effectiveness decreases at high speed (for realism)
-            double steerVelLimiter = Mth.clamp(1.0 - (Math.abs(nextVel) / (maxSpeed * STEERING_FALLOFF_FACTOR)),
-                    MIN_STEERING_LIMIT, 1.0);
-            float effectiveSteer = steer * (float)steerVelLimiter;
+            // Apply post-drift boost with enhanced acceleration
+            if (this.getBoostRemaining() > 0) {
+                double boostMultiplier = this.getBoostMultiplier();
+                effectiveMaxSpeed *= boostMultiplier;
 
-            // Car-like turning: rotate yaw based on steering and speed
-            if (Math.abs(effectiveSteer) > 0.001 && Math.abs(nextVel) > MIN_TURNING_SPEED) {
-                float yawDelta = (float)(effectiveSteer * Math.abs(nextVel) * STEERING_STRENGTH);
-                this.setYRot(this.getYRot() + yawDelta);
+                // Add acceleration boost proportional to speed boost
+                // This helps quickly reach the new max speed
+                accelerationMultiplier = 1.0 + (boostMultiplier - 1.0) * 1.5;
+            }
+
+            // --- ACCELERATION/DECELERATION LOGIC ---
+            double targetSpeed = throttleInput * effectiveMaxSpeed;
+            double speedError = targetSpeed - currentVel;
+
+            double forceApplied = 0.0;
+
+            // Handle different cases of movement control
+            if (isDrifting) {
+                // Special handling for drift mode - reduced traction but bonus acceleration
+                if (Math.abs(throttleInput) > 0.01) {
+                    // Apply throttle with reduced effectiveness during drift, but with bonus
+                    double driftAccel = acceleration * weightFactor *
+                            (1.0 - DRIFT_TRACTION_REDUCTION + DRIFT_THROTTLE_BONUS);
+                    forceApplied = Math.signum(speedError) * driftAccel;
+                } else {
+                    // Natural deceleration during drift (reduced due to sliding)
+                    double naturalDecel = (ROLLING_RESISTANCE + AIR_RESISTANCE * absVel) * weightFactor * 0.6;
+                    forceApplied = -Math.signum(currentVel) * naturalDecel;
+                }
+            }
+            // Handbrake without drifting (quick stop) - only apply if the car is actually moving
+            else if (isQuickStop && absVel > HANDBRAKE_STOP_VELOCITY) {
+                double speedFactor = Math.min(absVel / 0.3, 1.0);
+
+                // Calculate base brake force
+                double brakeFactor = handbrakeEffectiveness * (HANDBRAKE_FORCE_MULTIPLIER +
+                        (speedFactor * QUICK_STOP_EXTRA_FORCE));
+
+                // Low speed scaling to make stops smoother
+                if (absVel < 0.1) {
+                    brakeFactor *= HANDBRAKE_LOW_SPEED_SCALING +
+                            ((absVel / 0.1) * (1.0 - HANDBRAKE_LOW_SPEED_SCALING));
+                }
+
+                // Apply brake force with clamping to prevent jerky stops
+                double rawBrakeForce = brakeStrength * brakeFactor;
+                double clampedBrakeForce = Math.min(rawBrakeForce, HANDBRAKE_FORCE_CLAMP);
+
+                // Apply gradual braking using HANDBRAKE_GRADUAL_FACTOR
+                forceApplied = -Math.signum(currentVel) * clampedBrakeForce * HANDBRAKE_GRADUAL_FACTOR;
+            }
+            // Normal driving
+            else if (Math.abs(throttleInput) > 0.01) {
+                // Active throttle input
+                if (Math.signum(throttleInput) == Math.signum(currentVel) || Math.abs(currentVel) < 0.001) {
+                    // Accelerating in current direction or from standstill
+                    // Apply acceleration multiplier from boost
+                    forceApplied = Math.signum(speedError) * acceleration * weightFactor * accelerationMultiplier;
+                } else {
+                    // Braking (throttle opposite to current velocity)
+                    forceApplied = Math.signum(speedError) * brakeStrength * weightFactor * ENHANCED_BRAKING_MULTIPLIER;
+                }
+            } else {
+                // No throttle - natural deceleration
+                if (absVel > 0.001) {
+                    double naturalDecel = (ROLLING_RESISTANCE + AIR_RESISTANCE * absVel) * weightFactor;
+                    forceApplied = -Math.signum(currentVel) * naturalDecel;
+                }
+            }
+
+            // Apply acceleration with drag consideration
+            double dragForce = drag * absVel * absVel * Math.signum(currentVel) * weightFactor;
+            double netForce = forceApplied - dragForce;
+
+            double deltaV = netForce * TICK_DELTA_TIME;
+
+            // Prevent unrealistic instant direction changes
+            double nextVel = currentVel + deltaV;
+            if ((Math.abs(throttleInput) < 0.01 || (isQuickStop && absVel <= HANDBRAKE_STOP_VELOCITY)) &&
+                    Math.abs(nextVel) < COMPLETE_STOP_THRESHOLD) {
+                nextVel = 0.0; // Come to complete stop
+            }
+
+            // --- CALCULATE LATERAL SLIPPAGE FOR DRIFT ---
+            double lateralSlippage = 0.0;
+
+            // Enhanced drift slip calculation with passive slip component
+            if (isDrifting) {
+                // Calculate drift duration factor for smooth transitions
+                double driftDurationFactor = Math.min(this.getDriftDuration() / 5.0, 1.0);
+
+                // Base slip calculation with steering influence
+                double steerInfluence = Math.signum(steerInput) * Math.min(Math.abs(steerInput) * 1.5, 1.0);
+
+                // Apply passive slip component even with minimal steering
+                double passiveSlip = DRIFT_PASSIVE_SLIP * Math.signum(steerInput == 0 ? getLastSteerInput() : steerInput);
+
+                // Combine active and passive slip
+                double baseSlip = (DRIFT_SIDE_SLIP_FACTOR * steerInfluence + passiveSlip) * handbrakeEffectiveness;
+
+                // Scale slip with velocity for more realistic drift behavior
+                double speedFactor = Math.pow(absVel / effectiveMaxSpeed, DRIFT_SIDE_SLIP_SPEED_SCALING);
+                speedFactor = Mth.clamp(speedFactor, 0.2, 1.0); // Minimum 0.2 for some slip even at low speeds
+
+                // Apply smooth entry to drift
+                lateralSlippage = baseSlip * speedFactor * absVel * driftDurationFactor;
+
+                // Ensure a minimum slip during drift if there's any steering input
+                if (Math.abs(steerInput) > 0.1 && absVel > DRIFT_SPEED_THRESHOLD) {
+                    double minSlip = absVel * 0.2 * Math.signum(steerInput);
+                    lateralSlippage = Math.signum(lateralSlippage) == Math.signum(minSlip) ?
+                            Math.max(Math.abs(lateralSlippage), Math.abs(minSlip)) * Math.signum(lateralSlippage) :
+                            lateralSlippage;
+                }
+
+                // Clamp lateral slip to prevent excessive values
+                double maxSlip = absVel * 0.8;
+                lateralSlippage = Mth.clamp(lateralSlippage, -maxSlip, maxSlip);
+            }
+
+            // --- STEERING DYNAMICS ---
+            double effectiveSteer = 0.0;
+
+            if (Math.abs(steerInput) > 0.001 && absVel > MIN_TURNING_SPEED) {
+                // Base steering calculation
+                double baseSteer = steerInput * steeringFactor * TURNING_RADIUS_FACTOR;
+
+                // Speed-based steering reduction for realism
+                double speedRatio = absVel / effectiveMaxSpeed;
+                double steerReduction = 1.0 - (speedRatio * STEERING_SPEED_FALLOFF);
+                steerReduction = Mth.clamp(steerReduction, MIN_STEERING_EFFECTIVENESS, 1.0);
+
+                // Apply weight influence (heavier cars turn slower)
+                double weightSteerFactor = Math.pow(weightFactor, WEIGHT_STEERING_POWER);
+
+                // Enhanced steering during drift with smooth transition
+                double driftSteeringMult = 1.0;
+                if (isDrifting) {
+                    // Gradually increase steering enhancement based on drift duration
+                    double driftFactor = Math.min(this.getDriftDuration() / 8.0, 1.0);
+                    driftSteeringMult = 1.0 + (DRIFT_TURNING_ENHANCEMENT - 1.0) * driftFactor;
+                }
+
+                // Calculate effective steering
+                effectiveSteer = baseSteer * steerReduction * weightSteerFactor * driftSteeringMult;
+
+                // Reverse steering adjustment
+                if (isReversing) {
+                    effectiveSteer *= -REVERSE_STEERING_FACTOR; // Realistic reverse steering
+                }
+
+                // Apply drift yaw enhancement - only if actually drifting
+                if (isDrifting) {
+                    // Gradually increase yaw multiplier as drift continues
+                    double driftFactor = Math.min(this.getDriftDuration() / 8.0, 1.0);
+                    double yawEnhancement = 1.0 + (DRIFT_YAW_MULTIPLIER - 1.0) * driftFactor;
+                    effectiveSteer *= yawEnhancement;
+                }
+
+                // Apply steering limit based on current speed
+                double maxSteerAngle = MAX_STEERING_ANGLE_BASE * (1.0 - speedRatio * MAX_STEERING_SPEED_REDUCTION);
+                effectiveSteer = Mth.clamp(effectiveSteer, -maxSteerAngle, maxSteerAngle);
+            }
+
+            // --- APPLY YAW ROTATION ---
+            if (Math.abs(effectiveSteer) > 0.001) {
+                // Steering effectiveness scales with velocity for car-like behavior
+                double steerVelocityFactor = Math.min(absVel / (effectiveMaxSpeed * STEERING_VELOCITY_DENOMINATOR), 1.0);
+                float yawChange = (float)(effectiveSteer * steerVelocityFactor * YAW_CHANGE_MULTIPLIER);
+
+                this.setYRot(this.getYRot() + yawChange);
                 this.yRotO = this.getYRot();
             }
 
-            // Get forward vector based on new yaw
+            // --- CALCULATE MOVEMENT VECTOR ---
             float yaw = this.getYRot();
             double radYaw = Math.toRadians(yaw);
             double forwardX = -Mth.sin((float) radYaw);
             double forwardZ = Mth.cos((float) radYaw);
 
-            // --- VERTICAL MOTION (Gravity/Jump/Step) ---
-            double dy = this.getDeltaMovement().y; // Retain vertical velocity
+            // --- CALCULATE LATERAL VECTOR (FOR DRIFTING) ---
+            double lateralX = 0;
+            double lateralZ = 0;
 
-            // --- APPLY MOVEMENT VECTOR ---
-            this.setDeltaMovement(forwardX * nextVel * DOWNFORCE, dy, forwardZ * nextVel * DOWNFORCE);
+            if (Math.abs(lateralSlippage) > 0.001) {
+                // 90 degrees to forward direction for lateral drift
+                lateralX = -forwardZ * lateralSlippage;
+                lateralZ = forwardX * lateralSlippage;
+            }
+
+            // --- VERTICAL MOTION ---
+            double dy = this.getDeltaMovement().y; // Preserve gravity/jumping
+
+            // --- APPLY FINAL MOVEMENT ---
+            Vec3 horizontalMovement = new Vec3(
+                    (forwardX * nextVel + lateralX) * DOWNFORCE_MULTIPLIER,
+                    dy,
+                    (forwardZ * nextVel + lateralZ) * DOWNFORCE_MULTIPLIER
+            );
+
+            this.setDeltaMovement(horizontalMovement);
             updateCarForwardVelocity(nextVel);
-            super.travel(this.getDeltaMovement());
+
+            // Consume fuel based on actual effort (acceleration + maintaining speed)
+            // Higher consumption during drift and boost
+            double fuelMultiplier = 1.0;
+            if (isDrifting) fuelMultiplier *= 1.5;
+            if (this.getBoostRemaining() > 0) fuelMultiplier *= this.getBoostMultiplier();
+
+            if (Math.abs(throttleInput) > 0.01 || absVel > FUEL_CONSUMPTION_IDLE) {
+                useUpFuel((Math.abs(forceApplied) + absVel * FUEL_CONSUMPTION_IDLE) * fuelMultiplier);
+            }
+
+            super.travel(horizontalMovement);
         } else {
             super.travel(travelVector);
         }
     }
-
 
     @Override
     public void onSyncedDataUpdated(EntityDataAccessor<?> key) {

@@ -5,6 +5,7 @@ import io.fabianbuthere.simplecars.block.ModBlocks;
 import io.fabianbuthere.simplecars.entity.ModEntities;
 import io.fabianbuthere.simplecars.entity.client.BaseCarRenderer;
 import io.fabianbuthere.simplecars.item.ModItems;
+import io.fabianbuthere.simplecars.network.ModMessages;
 import net.minecraft.client.renderer.entity.EntityRenderers;
 import net.minecraft.world.level.material.Fluid;
 import net.minecraftforge.api.distmarker.Dist;
@@ -39,6 +40,8 @@ public class SimplecarsMod
         ModItems.register(modEventBus);
 
         ModEntities.register(modEventBus);
+
+        ModMessages.register();
 
         MinecraftForge.EVENT_BUS.register(this);
         modEventBus.addListener(this::addCreative);
